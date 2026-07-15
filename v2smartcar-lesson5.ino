@@ -20,7 +20,7 @@
 #define speedPinL 6        //  Left PWM pin connect MODEL-X ENB
 #define LeftDirectPin1  7    // Left Motor direction pin 1 to MODEL-X IN3
 #define LeftDirectPin2  8   ///Left Motor direction pin 1 to MODEL-X IN4
-#define LPT 2 // scan loop coumter
+#define LPT 1 // scan loop coumter
 
 #define SERVO_PIN     9  //servo connect to D9
 
@@ -35,17 +35,15 @@
 #define BACK_SPEED2  500     //back speed
 
 int leftscanval, centerscanval, rightscanval, ldiagonalscanval, rdiagonalscanval;
-const int distancelimit = 50; //distance limit for obstacles in front           
-const int sidedistancelimit = 15; //minimum distance in cm to obstacles at both sides (the car will allow a shorter distance sideways)
+const int distancelimit = 30; //distance limit for obstacles in front           
+const int sidedistancelimit = 25; //minimum distance in cm to obstacles at both sides (the car will allow a shorter distance sideways)
 int distance;
 int numcycles = 0;
-const int turntime = 250; //Time the robot spends turning (miliseconds)
-const int backtime = 300; //Time the robot spends turning (miliseconds)
+const int turntime = 400; //Time the robot spends turning (miliseconds)
+const int backtime = 200; //Time the robot spends turning (miliseconds)
 
 int thereis;
 Servo head;
-
-bool isLeftWall;
 /*motor control*/
 void go_Advance(void)  //Forward
 {
@@ -107,6 +105,7 @@ void buzz_OFF()  //close buzzer
   digitalWrite(BUZZ_PIN, HIGH);
   
 }
+
 void alarm(){
    buzz_ON();
  
@@ -141,14 +140,14 @@ int obstacle_status =B100000;
     obstacle_status  =obstacle_status | B100;
     }
   head.write(120);
-  delay(100);
+  delay(300);
   ldiagonalscanval = watch();
   if(ldiagonalscanval<distancelimit){
     stop_Stop();
     alarm();
      obstacle_status  =obstacle_status | B1000;
     }
-  head.write(170); //Didn't use 180 degrees because my servo is not able to take this angle
+  head.write(180); //Didn't use 180 degrees because my servo is not able to take this angle
   delay(300);
   leftscanval = watch();
   if(leftscanval<sidedistancelimit){
@@ -158,7 +157,7 @@ int obstacle_status =B100000;
     }
 
   head.write(90); //use 90 degrees if you are moving your servo through the whole 180 degrees
-  delay(100);
+  delay(300);
   centerscanval = watch();
   if(centerscanval<distancelimit){
     stop_Stop();
@@ -166,7 +165,7 @@ int obstacle_status =B100000;
     obstacle_status  =obstacle_status | B100;
     }
   head.write(40);
-  delay(100);
+  delay(300);
   rdiagonalscanval = watch();
   if(rdiagonalscanval<distancelimit){
     stop_Stop();
@@ -174,7 +173,7 @@ int obstacle_status =B100000;
     obstacle_status  =obstacle_status | B10;
     }
   head.write(0);
-  delay(100);
+  delay(300);
   rightscanval = watch();
   if(rightscanval<sidedistancelimit){
     stop_Stop();
@@ -198,47 +197,40 @@ void auto_avoidance(){
     Serial.print("begin str=");
     Serial.println(obstacle_sign);
                     
-//rightscanval, leftscanval, centerscanval, ldiagonalscanval and rdiagonalscanval
-    if (isLeftWall) {
-      if ( obstacle_sign == "01010" | obstacle_sign == "01000") {
-        set_Motorspeed(SPEED,SPEED);
-        go_Advance();  // if nothing is wrong go forward using go() function above.
-        delay(backtime);
-        stop_Stop();
-      } else if (obstacle_sign == "01110" | obstacle_sign == "01100") {
-        set_Motorspeed(TURN_SPEED,TURN_SPEED);
-        go_Right();
-        delay(turntime);
-        stop_Stop();
-      } else {
-        Serial.println("hand left");
-        set_Motorspeed(TURN_SPEED,TURN_SPEED);
-        go_Left();
-        delay(turntime);
-        stop_Stop();
-      }
-    }
+//rightscanval, leftscanval, centerscanval, ldiagonalscanval and rdiagonalscanval _ WRONG
 
-    else if (!isLeftWall) {
-      if ( obstacle_sign == "10001" | obstacle_sign == "10000" ) {
-        set_Motorspeed(SPEED,SPEED);
-        go_Advance();  // if nothing is wrong go forward using go() function above.
-        delay(backtime);
-        stop_Stop(); 
-      } else if (obstacle_sign == "10101" | obstacle_sign == "10100") {
-        set_Motorspeed(TURN_SPEED,TURN_SPEED);
-        go_Left();
-        delay(turntime);
-        stop_Stop();
-      } else {
-        Serial.println("hand right");
-        set_Motorspeed(TURN_SPEED,TURN_SPEED);
-        go_Right();
-        delay(turntime);
-        stop_Stop();
-      }
-    }
+//left leftdiag center rightdiag right
 
+    if (obstacle_sign.substring(0,1) == "0" ) {
+      set_Motorspeed(TURN_SPEED,TURN_SPEED);
+      go_Left();
+      delay(turntime);
+      stop_Stop();
+    // } else if (obstacle_sign.substring(1,2) == "0") {
+    //   set_Motorspeed(TURN_SPEED,TURN_SPEED);
+    //   go_Left();
+    //   delay(turntime/2);
+    //   stop_Stop();
+    } else if (obstacle_sign.substring(2,3) == "1") {
+      set_Motorspeed(SPEED,SPEED);
+      go_Advance();  // if nothing is wrong go forward using go() function above.
+      delay(backtime/2);
+      stop_Stop();
+      set_Motorspeed(TURN_SPEED,TURN_SPEED);
+      go_Right();
+      delay(turntime);
+      stop_Stop();
+      set_Motorspeed(SPEED,SPEED);
+      go_Advance();  // if nothing is wrong go forward using go() function above.
+      delay(backtime);
+      stop_Stop();
+    } else {
+      set_Motorspeed(SPEED,SPEED);
+      go_Advance();  // if nothing is wrong go forward using go() function above.
+      delay(backtime);
+      stop_Stop();
+    }
+    
     numcycles=0; //Restart count of cycles
   } else {
     set_Motorspeed(SPEED,SPEED);
@@ -289,17 +281,6 @@ void setup() {
    delay(2000);
   
   Serial.begin(9600);
-
-  String surroundingWalls = watchsurrounding();
-  if ( surroundingWalls == "01010" | surroundingWalls == "01000" | surroundingWalls == "01110" | surroundingWalls == "01100" ) {
-    isLeftWall = true;
-  } else if (surroundingWalls == "10001" | surroundingWalls == "10000" | surroundingWalls == "10101" | surroundingWalls == "10100") {
-    isLeftWall = false;
-  } else {
-    // this should never happen...
-    isLeftWall = true;
-  }
- 
  
 }
 
