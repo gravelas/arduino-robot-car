@@ -27,17 +27,17 @@
 #define Trig_PIN    10  // Ultrasonic Trig pin connect to D12
 
 #define BUZZ_PIN     13
-#define SPEED  180     //both sides of the motor speed
-#define TURN_SPEED  160     //both sides of the motor speed
+#define SPEED  160     //both sides of the motor speed
+#define TURN_SPEED  140     //both sides of the motor speed
 
 const int distancelimit = 30; //distance limit for obstacles in front           
-const int targetLeftDistance = 18;
+const int targetLeftDistance = 20;
 const int leftDistanceTolerance = 4;
 const int frontSensorAngle = 90;
 const int leftSensorAngle = 180;
-const unsigned long controlIntervalMs = 60;
-const unsigned long sensorSettleMs = 80;
-const unsigned long sensorSampleGapMs = 15;
+const unsigned long controlIntervalMs = 200;
+const unsigned long sensorSettleMs = 50;
+const unsigned long sensorSampleGapMs = 150;
 unsigned long lastControlAt = 0;
 
 Servo head;
