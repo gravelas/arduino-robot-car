@@ -144,11 +144,6 @@ int readLeftDistance(){
   return readDistanceAt(leftSensorAngle);
 }
 
-void startDrive(int leftSpeed, int rightSpeed){
-  set_Motorspeed(leftSpeed, rightSpeed);
-  go_Advance();
-}
-
 void auto_avoidance(){
 
   unsigned long now = millis();
@@ -165,17 +160,18 @@ void auto_avoidance(){
   int rightSpeed = SPEED;
 
   if (frontDistance <= distancelimit) {
-    leftSpeed = SPEED;
-    rightSpeed = TURN_SPEED;
+    set_Motospeed(TURN_SPEED, TURN_SPEED);
+    go_Right();
   } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
-    leftSpeed = TURN_SPEED;
-    rightSpeed = SPEED;
+    set_Motospeed(TURN_SPEED, TURN_SPEED);
+    go_Left();
   } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
-    leftSpeed = SPEED;
-    rightSpeed = TURN_SPEED;
+    set_Motospeed(TURN_SPEED, TURN_SPEED);
+    go_Right();
+  } else {
+    set_Motorspeed(SPEED, SPEED);
+    go_Advance();
   }
-
-  startDrive(leftSpeed, rightSpeed);
 }
 
 void setup() {
