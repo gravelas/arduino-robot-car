@@ -27,22 +27,16 @@
 #define Trig_PIN    10  // Ultrasonic Trig pin connect to D12
 
 #define BUZZ_PIN     13
-#define SPEED  160     //both sides of the motor speed
-#define TURN_SPEED  140     //both sides of the motor speed
-#define SHARP_TURN_INNER_SPEED  70   //inside wheel speed for tight turns
-#define SHARP_TURN_OUTER_SPEED  200  //outside wheel speed for tight turns
+#define SPEED  180     //both sides of the motor speed
+#define TURN_SPEED  160     //both sides of the motor speed
+#define BACK_SPEED1  160     //back speed
+#define BACK_SPEED2  160     //back speed
 
 const int distancelimit = 30; //distance limit for obstacles in front           
-const int targetLeftDistance = 20;
+const int targetLeftDistance = 18;
 const int leftDistanceTolerance = 4;
-const int sharpFrontDistance = 18;
-const int sharpLeftDistanceOffset = 10;
-const int frontSensorAngle = 90;
-const int leftSensorAngle = 180;
-const unsigned long controlIntervalMs = 200;
-const unsigned long sensorSettleMs = 50;
-const unsigned long sensorSampleGapMs = 150;
-unsigned long lastControlAt = 0;
+const int turntime = 400; //Time the robot spends turning (miliseconds)
+const int backtime = 200; //Time the robot spends turning (miliseconds)
 
 Servo head;
 /*motor control*/
@@ -67,17 +61,12 @@ void go_Right()  //Turn right
   digitalWrite(LeftDirectPin1,HIGH);
   digitalWrite(LeftDirectPin2,LOW);
 }
-void go_Left_Sharp()  //Turn left with differential speed for tight corners
+void go_Back()  //Reverse
 {
-  // Differential steering: inside wheel turns slower while outside wheel turns faster.
-  go_Left();
-  set_Motorspeed(SHARP_TURN_INNER_SPEED, SHARP_TURN_OUTER_SPEED);
-}
-void go_Right_Sharp()  //Turn right with differential speed for tight corners
-{
-  // Differential steering: inside wheel turns slower while outside wheel turns faster.
-  go_Right();
-  set_Motorspeed(SHARP_TURN_OUTER_SPEED, SHARP_TURN_INNER_SPEED);
+  digitalWrite(RightDirectPin1, LOW);
+  digitalWrite(RightDirectPin2,HIGH);
+  digitalWrite(LeftDirectPin1,LOW);
+  digitalWrite(LeftDirectPin2,HIGH);
 }
 void stop_Stop()    //Stop
 {
@@ -109,17 +98,13 @@ void buzz_ON()   //open buzzer
 void buzz_OFF()  //close buzzer
 {
   digitalWrite(BUZZ_PIN, HIGH);
+  
 }
 
-int medianOfThree(int first, int second, int third)
-{
-  if ((first <= second && second <= third) || (third <= second && second <= first)) {
-    return second;
-  }
-  if ((second <= first && first <= third) || (third <= first && first <= second)) {
-    return first;
-  }
-  return third;
+void alarm(){
+   buzz_ON();
+ 
+   buzz_OFF();
 }
 
 /*detection of ultrasonic distance*/
@@ -139,83 +124,61 @@ int watch(){
   return round(echo_distance);
 }
 
-int readDistanceAt(int angle){
-  head.write(angle);
-  delay(sensorSettleMs);
-
-  int firstSample = watch();
-  delay(sensorSampleGapMs);
-  int secondSample = watch();
-  delay(sensorSampleGapMs);
-  int thirdSample = watch();
-
-  return medianOfThree(firstSample, secondSample, thirdSample);
-}
-
 int readFrontDistance(){
-  return readDistanceAt(frontSensorAngle);
+  head.write(90);
+  delay(180);
+  return watch();
 }
 
 int readLeftDistance(){
-  return readDistanceAt(leftSensorAngle);
+  head.write(170);
+  delay(180);
+  return watch();
 }
 
-void turn_Left_Manual(bool sharpTurn)  //optional manual control helper
-{
-  if (sharpTurn) {
-    go_Left_Sharp();
-  } else {
-    set_Motorspeed(TURN_SPEED, TURN_SPEED);
-    go_Left();
-  }
+int readRightDistance(){
+  head.write(10);
+  delay(180);
+  return watch();
 }
 
-void turn_Right_Manual(bool sharpTurn)  //optional manual control helper
-{
-  if (sharpTurn) {
-    go_Right_Sharp();
-  } else {
-    set_Motorspeed(TURN_SPEED, TURN_SPEED);
-    go_Right();
-  }
+void driveForward(int leftSpeed, int rightSpeed, int durationMs){
+  set_Motorspeed(leftSpeed, rightSpeed);
+  go_Advance();
+  delay(durationMs);
+  stop_Stop();
 }
 
 void auto_avoidance(){
-
-  unsigned long now = millis();
-
-  if (now - lastControlAt < controlIntervalMs) {
-    return;
-  }
-  lastControlAt = now;
 
   int frontDistance = readFrontDistance();
   int leftDistance = readLeftDistance();
 
   if (frontDistance <= distancelimit) {
-    if (frontDistance <= sharpFrontDistance) {
-      go_Right_Sharp();
-    } else {
-      set_Motorspeed(TURN_SPEED, TURN_SPEED);
+    stop_Stop();
+    alarm();
+    set_Motorspeed(BACK_SPEED1,BACK_SPEED2);
+    go_Back();
+    delay(backtime);
+    stop_Stop();
+
+    int rightDistance = readRightDistance();
+    if (rightDistance > distancelimit) {
+      set_Motorspeed(TURN_SPEED,TURN_SPEED);
       go_Right();
-    }
-  } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
-    if (leftDistance > targetLeftDistance + leftDistanceTolerance + sharpLeftDistanceOffset) {
-      go_Left_Sharp();
+      delay(turntime);
     } else {
-      set_Motorspeed(TURN_SPEED, TURN_SPEED);
+      set_Motorspeed(TURN_SPEED,TURN_SPEED);
       go_Left();
+      delay(turntime * 2);
     }
+    stop_Stop();
+  } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
+    driveForward(TURN_SPEED, SPEED, backtime);
   } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
-    if (leftDistance < targetLeftDistance - leftDistanceTolerance - sharpLeftDistanceOffset) {
-      go_Right_Sharp();
-    } else {
-      set_Motorspeed(TURN_SPEED, TURN_SPEED);
-      go_Right();
-    }
+    driveForward(SPEED, TURN_SPEED, backtime);
   } else {
-    set_Motorspeed(SPEED, SPEED);
-    go_Advance();
+    driveForward(SPEED, SPEED, backtime);
   }
 }
 
@@ -239,8 +202,8 @@ void setup() {
   digitalWrite(Trig_PIN,LOW);
   /*init servo*/
   head.attach(SERVO_PIN); 
-  head.write(frontSensorAngle);
-  delay(1000);
+  head.write(90);
+   delay(2000);
   
   Serial.begin(9600);
  
