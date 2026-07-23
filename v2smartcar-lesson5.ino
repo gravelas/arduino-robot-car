@@ -29,10 +29,14 @@
 #define BUZZ_PIN     13
 #define SPEED  160     //both sides of the motor speed
 #define TURN_SPEED  140     //both sides of the motor speed
+#define SHARP_TURN_INNER_SPEED  70   //inside wheel speed for tight turns
+#define SHARP_TURN_OUTER_SPEED  200  //outside wheel speed for tight turns
 
 const int distancelimit = 30; //distance limit for obstacles in front           
 const int targetLeftDistance = 20;
 const int leftDistanceTolerance = 4;
+const int sharpFrontDistance = 18;
+const int sharpLeftDistanceOffset = 10;
 const int frontSensorAngle = 90;
 const int leftSensorAngle = 180;
 const unsigned long controlIntervalMs = 200;
@@ -62,6 +66,18 @@ void go_Right()  //Turn right
   digitalWrite(RightDirectPin2,HIGH);
   digitalWrite(LeftDirectPin1,HIGH);
   digitalWrite(LeftDirectPin2,LOW);
+}
+void go_Left_Sharp()  //Turn left with differential speed for tight corners
+{
+  // Differential steering: inside wheel turns slower while outside wheel turns faster.
+  go_Left();
+  set_Motorspeed(SHARP_TURN_INNER_SPEED, SHARP_TURN_OUTER_SPEED);
+}
+void go_Right_Sharp()  //Turn right with differential speed for tight corners
+{
+  // Differential steering: inside wheel turns slower while outside wheel turns faster.
+  go_Right();
+  set_Motorspeed(SHARP_TURN_OUTER_SPEED, SHARP_TURN_INNER_SPEED);
 }
 void stop_Stop()    //Stop
 {
@@ -144,6 +160,26 @@ int readLeftDistance(){
   return readDistanceAt(leftSensorAngle);
 }
 
+void turn_Left_Manual(bool sharpTurn)  //optional manual control helper
+{
+  if (sharpTurn) {
+    go_Left_Sharp();
+  } else {
+    set_Motorspeed(TURN_SPEED, TURN_SPEED);
+    go_Left();
+  }
+}
+
+void turn_Right_Manual(bool sharpTurn)  //optional manual control helper
+{
+  if (sharpTurn) {
+    go_Right_Sharp();
+  } else {
+    set_Motorspeed(TURN_SPEED, TURN_SPEED);
+    go_Right();
+  }
+}
+
 void auto_avoidance(){
 
   unsigned long now = millis();
@@ -156,18 +192,27 @@ void auto_avoidance(){
   int frontDistance = readFrontDistance();
   int leftDistance = readLeftDistance();
 
-  int leftSpeed = SPEED;
-  int rightSpeed = SPEED;
-
   if (frontDistance <= distancelimit) {
-    set_Motospeed(TURN_SPEED, TURN_SPEED);
-    go_Right();
+    if (frontDistance <= sharpFrontDistance) {
+      go_Right_Sharp();
+    } else {
+      set_Motorspeed(TURN_SPEED, TURN_SPEED);
+      go_Right();
+    }
   } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
-    set_Motospeed(TURN_SPEED, TURN_SPEED);
-    go_Left();
+    if (leftDistance > targetLeftDistance + leftDistanceTolerance + sharpLeftDistanceOffset) {
+      go_Left_Sharp();
+    } else {
+      set_Motorspeed(TURN_SPEED, TURN_SPEED);
+      go_Left();
+    }
   } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
-    set_Motospeed(TURN_SPEED, TURN_SPEED);
-    go_Right();
+    if (leftDistance < targetLeftDistance - leftDistanceTolerance - sharpLeftDistanceOffset) {
+      go_Right_Sharp();
+    } else {
+      set_Motorspeed(TURN_SPEED, TURN_SPEED);
+      go_Right();
+    }
   } else {
     set_Motorspeed(SPEED, SPEED);
     go_Advance();
