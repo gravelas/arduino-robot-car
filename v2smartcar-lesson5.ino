@@ -173,8 +173,15 @@ void auto_avoidance(){
       delay(turntime * 2);
     }
     stop_Stop();
-  } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
-    driveForward(SPEED, TURN_SPEED - 35, backtime + 100);
+  } else if (leftError > leftDistanceTolerance + 8) {
+    // WAY too far from left wall -> hard left correction
+    set_Motorspeed(TURN_SPEED, TURN_SPEED);
+    go_Left();
+    delay(backtime + 120);   // tune 250-400ms total
+    stop_Stop();
+  } else if (leftError > leftDistanceTolerance) {
+    // Slightly too far -> gentle left correction (original-style arc)
+    driveForward(TURN_SPEED, SPEED, backtime);
   } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
     driveForward(SPEED, TURN_SPEED, backtime);
   } else {
