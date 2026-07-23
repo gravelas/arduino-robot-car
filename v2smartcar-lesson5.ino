@@ -131,7 +131,7 @@ int readFrontDistance(){
 }
 
 int readLeftDistance(){
-  head.write(170);
+  head.write(180);
   delay(180);
   return watch();
 }
