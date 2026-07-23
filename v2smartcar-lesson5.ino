@@ -29,14 +29,16 @@
 #define BUZZ_PIN     13
 #define SPEED  180     //both sides of the motor speed
 #define TURN_SPEED  160     //both sides of the motor speed
-#define BACK_SPEED1  160     //back speed
-#define BACK_SPEED2  160     //back speed
 
 const int distancelimit = 30; //distance limit for obstacles in front           
 const int targetLeftDistance = 18;
 const int leftDistanceTolerance = 4;
-const int turntime = 400; //Time the robot spends turning (miliseconds)
-const int backtime = 200; //Time the robot spends turning (miliseconds)
+const int frontSensorAngle = 90;
+const int leftSensorAngle = 180;
+const unsigned long controlIntervalMs = 60;
+const unsigned long sensorSettleMs = 80;
+const unsigned long sensorSampleGapMs = 15;
+unsigned long lastControlAt = 0;
 
 Servo head;
 /*motor control*/
@@ -60,13 +62,6 @@ void go_Right()  //Turn right
   digitalWrite(RightDirectPin2,HIGH);
   digitalWrite(LeftDirectPin1,HIGH);
   digitalWrite(LeftDirectPin2,LOW);
-}
-void go_Back()  //Reverse
-{
-  digitalWrite(RightDirectPin1, LOW);
-  digitalWrite(RightDirectPin2,HIGH);
-  digitalWrite(LeftDirectPin1,LOW);
-  digitalWrite(LeftDirectPin2,HIGH);
 }
 void stop_Stop()    //Stop
 {
@@ -98,13 +93,17 @@ void buzz_ON()   //open buzzer
 void buzz_OFF()  //close buzzer
 {
   digitalWrite(BUZZ_PIN, HIGH);
-  
 }
 
-void alarm(){
-   buzz_ON();
- 
-   buzz_OFF();
+int medianOfThree(int first, int second, int third)
+{
+  if ((first <= second && second <= third) || (third <= second && second <= first)) {
+    return second;
+  }
+  if ((second <= first && first <= third) || (third <= first && first <= second)) {
+    return first;
+  }
+  return third;
 }
 
 /*detection of ultrasonic distance*/
@@ -124,62 +123,59 @@ int watch(){
   return round(echo_distance);
 }
 
+int readDistanceAt(int angle){
+  head.write(angle);
+  delay(sensorSettleMs);
+
+  int firstSample = watch();
+  delay(sensorSampleGapMs);
+  int secondSample = watch();
+  delay(sensorSampleGapMs);
+  int thirdSample = watch();
+
+  return medianOfThree(firstSample, secondSample, thirdSample);
+}
+
 int readFrontDistance(){
-  head.write(90);
-  delay(180);
-  return watch();
+  return readDistanceAt(frontSensorAngle);
 }
 
 int readLeftDistance(){
-  head.write(170);
-  delay(180);
-  return watch();
+  return readDistanceAt(leftSensorAngle);
 }
 
-int readRightDistance(){
-  head.write(10);
-  delay(180);
-  return watch();
-}
-
-void driveForward(int leftSpeed, int rightSpeed, int durationMs){
+void startDrive(int leftSpeed, int rightSpeed){
   set_Motorspeed(leftSpeed, rightSpeed);
   go_Advance();
-  delay(durationMs);
-  stop_Stop();
 }
 
 void auto_avoidance(){
 
+  unsigned long now = millis();
+
+  if (now - lastControlAt < controlIntervalMs) {
+    return;
+  }
+  lastControlAt = now;
+
   int frontDistance = readFrontDistance();
   int leftDistance = readLeftDistance();
 
-  if (frontDistance <= distancelimit) {
-    stop_Stop();
-    alarm();
-    set_Motorspeed(BACK_SPEED1,BACK_SPEED2);
-    go_Back();
-    delay(backtime);
-    stop_Stop();
+  int leftSpeed = SPEED;
+  int rightSpeed = SPEED;
 
-    int rightDistance = readRightDistance();
-    if (rightDistance > distancelimit) {
-      set_Motorspeed(TURN_SPEED,TURN_SPEED);
-      go_Right();
-      delay(turntime);
-    } else {
-      set_Motorspeed(TURN_SPEED,TURN_SPEED);
-      go_Left();
-      delay(turntime * 2);
-    }
-    stop_Stop();
+  if (frontDistance <= distancelimit) {
+    leftSpeed = SPEED;
+    rightSpeed = TURN_SPEED;
   } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
-    driveForward(TURN_SPEED, SPEED, backtime);
+    leftSpeed = TURN_SPEED;
+    rightSpeed = SPEED;
   } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
-    driveForward(SPEED, TURN_SPEED, backtime);
-  } else {
-    driveForward(SPEED, SPEED, backtime);
+    leftSpeed = SPEED;
+    rightSpeed = TURN_SPEED;
   }
+
+  startDrive(leftSpeed, rightSpeed);
 }
 
 void setup() {
@@ -202,8 +198,8 @@ void setup() {
   digitalWrite(Trig_PIN,LOW);
   /*init servo*/
   head.attach(SERVO_PIN); 
-  head.write(90);
-   delay(2000);
+  head.write(frontSensorAngle);
+  delay(1000);
   
   Serial.begin(9600);
  
