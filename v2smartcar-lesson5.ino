@@ -11,7 +11,7 @@
  *   
  * 
  */
-  #include <Servo.h>
+#include <Servo.h>
 /*Declare L298N Dual H-Bridge Motor Controller directly since there is not a library to load.*/
 //Define L298N Dual H-Bridge Motor Controller Pins
 #define speedPinR 3   // RIGHT PWM pin connect MODEL-X ENA
@@ -20,7 +20,6 @@
 #define speedPinL 6        //  Left PWM pin connect MODEL-X ENB
 #define LeftDirectPin1  7    // Left Motor direction pin 1 to MODEL-X IN3
 #define LeftDirectPin2  8   ///Left Motor direction pin 1 to MODEL-X IN4
-#define LPT 1 // scan loop coumter
 
 #define SERVO_PIN     9  //servo connect to D9
 
@@ -28,21 +27,17 @@
 #define Trig_PIN    10  // Ultrasonic Trig pin connect to D12
 
 #define BUZZ_PIN     13
-#define FAST_SPEED  500     //both sides of the motor speed
-#define SPEED  500     //both sides of the motor speed
-#define TURN_SPEED  500     //both sides of the motor speed
-#define BACK_SPEED1  500     //back speed
-#define BACK_SPEED2  500     //back speed
+#define SPEED  180     //both sides of the motor speed
+#define TURN_SPEED  160     //both sides of the motor speed
+#define BACK_SPEED1  160     //back speed
+#define BACK_SPEED2  160     //back speed
 
-int leftscanval, centerscanval, rightscanval, ldiagonalscanval, rdiagonalscanval;
 const int distancelimit = 30; //distance limit for obstacles in front           
-const int sidedistancelimit = 25; //minimum distance in cm to obstacles at both sides (the car will allow a shorter distance sideways)
-int distance;
-int numcycles = 0;
+const int targetLeftDistance = 18;
+const int leftDistanceTolerance = 4;
 const int turntime = 400; //Time the robot spends turning (miliseconds)
 const int backtime = 200; //Time the robot spends turning (miliseconds)
 
-int thereis;
 Servo head;
 /*motor control*/
 void go_Advance(void)  //Forward
@@ -120,141 +115,71 @@ int watch(){
   digitalWrite(Trig_PIN,HIGH);
   delayMicroseconds(15);
   digitalWrite(Trig_PIN,LOW);
-  echo_distance=pulseIn(Echo_PIN,HIGH);
+  echo_distance=pulseIn(Echo_PIN,HIGH,25000UL);
+  if(echo_distance == 0){
+    return 200;
+  }
   echo_distance=echo_distance*0.01657; //how far away is the object in cm
   //Serial.println((int)echo_distance);
   return round(echo_distance);
 }
-//Meassures distances to the right, left, front, left diagonal, right diagonal and asign them in cm to the variables rightscanval, 
-//leftscanval, centerscanval, ldiagonalscanval and rdiagonalscanval (there are 5 points for distance testing)
-String watchsurrounding(){
-/*  obstacle_status is a binary integer, its last 5 digits stands for if there is any obstacles in 5 directions,
- *   for example B101000 last 5 digits is 01000, which stands for Left front has obstacle, B100111 means front, right front and right ha
- */
- 
-int obstacle_status =B100000;
-  centerscanval = watch();
-  if(centerscanval<distancelimit){
-    stop_Stop();
-    alarm();
-    obstacle_status  =obstacle_status | B100;
-    }
-  head.write(120);
-  delay(300);
-  ldiagonalscanval = watch();
-  if(ldiagonalscanval<distancelimit){
-    stop_Stop();
-    alarm();
-     obstacle_status  =obstacle_status | B1000;
-    }
-  head.write(180); //Didn't use 180 degrees because my servo is not able to take this angle
-  delay(300);
-  leftscanval = watch();
-  if(leftscanval<sidedistancelimit){
-    stop_Stop();
-    alarm();
-     obstacle_status  =obstacle_status | B10000;
-    }
 
-  head.write(90); //use 90 degrees if you are moving your servo through the whole 180 degrees
-  delay(300);
-  centerscanval = watch();
-  if(centerscanval<distancelimit){
-    stop_Stop();
-    alarm();
-    obstacle_status  =obstacle_status | B100;
-    }
-  head.write(40);
-  delay(300);
-  rdiagonalscanval = watch();
-  if(rdiagonalscanval<distancelimit){
-    stop_Stop();
-    alarm();
-    obstacle_status  =obstacle_status | B10;
-    }
-  head.write(0);
-  delay(300);
-  rightscanval = watch();
-  if(rightscanval<sidedistancelimit){
-    stop_Stop();
-    alarm();
-    obstacle_status  =obstacle_status | 1;
-    }
-  head.write(90); //Finish looking around (look forward again)
-  delay(300);
-   String obstacle_str= String(obstacle_status,BIN);
-  obstacle_str= obstacle_str.substring(1,6);
-  
-  return obstacle_str; //return 5-character string standing for 5 direction obstacle status
+int readFrontDistance(){
+  head.write(90);
+  delay(180);
+  return watch();
+}
+
+int readLeftDistance(){
+  head.write(170);
+  delay(180);
+  return watch();
+}
+
+int readRightDistance(){
+  head.write(10);
+  delay(180);
+  return watch();
+}
+
+void driveForward(int leftSpeed, int rightSpeed, int durationMs){
+  set_Motorspeed(leftSpeed, rightSpeed);
+  go_Advance();
+  delay(durationMs);
+  stop_Stop();
 }
 
 void auto_avoidance(){
 
-  ++numcycles;
-  if(numcycles>=LPT){ //Watch if something is around every LPT loops while moving forward 
+  int frontDistance = readFrontDistance();
+  int leftDistance = readLeftDistance();
+
+  if (frontDistance <= distancelimit) {
     stop_Stop();
-    String obstacle_sign=watchsurrounding(); // 5 digits of obstacle_sign binary value means the 5 direction obstacle status
-    Serial.print("begin str=");
-    Serial.println(obstacle_sign);
-                    
-//rightscanval, leftscanval, centerscanval, ldiagonalscanval and rdiagonalscanval _ WRONG
+    alarm();
+    set_Motorspeed(BACK_SPEED1,BACK_SPEED2);
+    go_Back();
+    delay(backtime);
+    stop_Stop();
 
-//left leftdiag center rightdiag right
-
-    if (obstacle_sign.substring(0,1) == "0" ) {
-      set_Motorspeed(TURN_SPEED,TURN_SPEED);
-      go_Left();
-      delay(turntime);
-      stop_Stop();
-    // } else if (obstacle_sign.substring(1,2) == "0") {
-    //   set_Motorspeed(TURN_SPEED,TURN_SPEED);
-    //   go_Left();
-    //   delay(turntime/2);
-    //   stop_Stop();
-    } else if (obstacle_sign.substring(2,3) == "1") {
-      set_Motorspeed(SPEED,SPEED);
-      go_Advance();  // if nothing is wrong go forward using go() function above.
-      delay(backtime/2);
-      stop_Stop();
+    int rightDistance = readRightDistance();
+    if (rightDistance > distancelimit) {
       set_Motorspeed(TURN_SPEED,TURN_SPEED);
       go_Right();
       delay(turntime);
-      stop_Stop();
-      set_Motorspeed(SPEED,SPEED);
-      go_Advance();  // if nothing is wrong go forward using go() function above.
-      delay(backtime);
-      stop_Stop();
     } else {
-      set_Motorspeed(SPEED,SPEED);
-      go_Advance();  // if nothing is wrong go forward using go() function above.
-      delay(backtime);
-      stop_Stop();
+      set_Motorspeed(TURN_SPEED,TURN_SPEED);
+      go_Left();
+      delay(turntime * 2);
     }
-    
-    numcycles=0; //Restart count of cycles
-  } else {
-    set_Motorspeed(SPEED,SPEED);
-    go_Advance();  // if nothing is wrong go forward using go() function above.
-    delay(backtime);
     stop_Stop();
+  } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
+    driveForward(TURN_SPEED, SPEED, backtime);
+  } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
+    driveForward(SPEED, TURN_SPEED, backtime);
+  } else {
+    driveForward(SPEED, SPEED, backtime);
   }
-  
-  //else  Serial.println(numcycles);
-  
-  // distance = watch(); // use the watch() function to see if anything is ahead (when the robot is just moving forward and not looking around it will test the distance in front)
-  // if (distance<distancelimit){ // The robot will just stop if it is completely sure there's an obstacle ahead (must test 25 times) (needed to ignore ultrasonic sensor's false signals)
-  //   Serial.println("final go back");
-  //   go_Right();
-  //   set_Motorspeed( SPEED,FAST_SPEED);
-  //   delay(backtime*3/2);
-  //   ++thereis;}
-  // if (distance>distancelimit){
-  //   thereis=0;} //Count is restarted
-  // if (thereis > 25){
-  //   Serial.println("final stop");
-  //   stop_Stop(); // Since something is ahead, stop moving.
-  //   thereis=0;
-  // }
 }
 
 void setup() {
