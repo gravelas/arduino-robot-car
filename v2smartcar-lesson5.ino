@@ -174,7 +174,7 @@ void auto_avoidance(){
     }
     stop_Stop();
   } else if (leftDistance > targetLeftDistance + leftDistanceTolerance) {
-    driveForward(TURN_SPEED, SPEED, backtime);
+    driveForward(SPEED, TURN_SPEED - 35, backtime + 100);
   } else if (leftDistance < targetLeftDistance - leftDistanceTolerance) {
     driveForward(SPEED, TURN_SPEED, backtime);
   } else {
